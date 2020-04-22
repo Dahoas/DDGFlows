@@ -68,6 +68,29 @@ class NonisometricCurvatureFlow {
 		return proj;
 	}
 
+	dist(i,j){
+		return Math.sqrt((this.geometry.positions[i].x-this.geometry.positions[j].x)**2 + (this.geometry.positions[i].y-this.geometry.positions[j].y)**2 + (this.geometry.positions[i].z-this.geometry.positions[j].z)**2);
+	}
+
+	compute_energy(type){
+		let energy = 0;
+		for(let i = 0; i < this.n; i++){
+			let term = 0;
+			//Maybe should change so that curvature of/at a vertex i is not the ith-1 curvature
+			if(type == "default"){
+				term = 2*(this.curvatures[(i-1+this.n)%this.n]**2)*(1/(this.lengths[(i-1+this.n)%this.n]+this.lengths[i]));
+			}
+			else if(type == "squared_lengths"){
+				term = 2*(this.curvatures[(i-1+this.n)%this.n]**2)*(1/(this.lengths[(i-1+this.n)%this.n]+this.lengths[i])) + this.lengths[i]**2;
+			}
+			else if(type == "squared_curvatures"){
+				term = (this.curvatures[(i-1+this.n)%this.n]**2);
+			}
+			energy = energy + term;
+		}
+		return energy;
+	}
+
 	build_coordinates(){
 		//logging objects seem to cache without actually printing
 		//console.log(JSON.stringify(this.geometry.positions));
@@ -187,7 +210,7 @@ class NonisometricCurvatureFlow {
 		}
 		//Construct edge vectors:
 		//Assumes curve in z plane
-		this.edges = [];
+		this.tangents = [];
 		for(let i = 0; i < this.n; i++){
 			//Determine location of i+1 index from i
 			//Center vertex 0 at 0
@@ -199,6 +222,7 @@ class NonisometricCurvatureFlow {
 				vec.x = Math.cos(crv);
 				vec.y = Math.sin(crv);
 				vec.scaleBy(this.lengths[i]);
+				this.tangents.push(vec);
 
 				this.geometry.positions[i+1].x = this.geometry.positions[i].x + vec.x;
 				this.geometry.positions[i+1].y = this.geometry.positions[i].y + vec.y;
@@ -228,20 +252,22 @@ class NonisometricCurvatureFlow {
 				vec.x = Math.cos(crv);
 				vec.y = Math.sin(crv);
 				vec.scaleBy(this.lengths[i]);
-				this.geometry.positions[i+1].x = this.geometry.positions[i].x + vec.x;
+				this.tangents.push(vec);
+				/*this.geometry.positions[i+1].x = this.geometry.positions[i].x + vec.x;
 				this.geometry.positions[i+1].y = this.geometry.positions[i].y + vec.y;
-				this.geometry.positions[i+1].z = 0;
+				this.geometry.positions[i+1].z = 0;*/
 			}
 			//this.print(this.vert_ordering[i+1]);
 		}
 
 		//Recover edge vectors
+		/*this.tangents = [];
 		for(let i = 0; i < this.n; i++){
 			let pj = this.geometry.positions[i+1];
 			let pi = this.geometry.positions[i];
 			let vec = new Vector(pj.x-pi.x,pj.y-pi.y,pj.z-pi.z);
-			this.edges.push(vec);
-		}
+			this.tangents.push(vec);
+		}*/
 
 		//console.log(JSON.stringify(this.geometry.positions));
 		console.log(JSON.stringify(this.lengths));
@@ -262,8 +288,38 @@ class NonisometricCurvatureFlow {
 			this.l_grad_energies[i] = l_grad1+l_grad2;
 		}
 		//console.log(JSON.stringify(this.l_grad_energies));
-		//console.log(JSON.stringify(this.k_grad_energies));
+		//console.log(JSON.stringify(this.k_grad_energies));	
+	}
 
+	compute_squared_lengths(){
+
+		this.l_grad_energies = new Array(this.n);
+		this.k_grad_energies = new Array(this.n);
+		for(let i = 0; i < this.n; i++){
+			//Our formula will be reindexed with l_i + l_(i+1)
+			//because of how mesh initialized
+			this.k_grad_energies[i] = 4*this.curvatures[i]/(this.lengths[i]+this.lengths[(i+1)%this.n]);
+			//Formula for edges will contain i-1 and i curvatures
+			let l_grad1 = -2*this.curvatures[(i-1+this.n)%this.n]/((this.lengths[(i-1+this.n)%this.n]+this.lengths[i])**2);
+			let l_grad2 = -2*this.curvatures[i]/((this.lengths[i]+this.lengths[(i+1)%this.n])**2);
+			//Adding sum of squared lengths
+			let l_grad3 = 2*this.lengths[i];
+			this.l_grad_energies[i] = l_grad1+l_grad2+l_grad3;
+		}		
+	}
+
+	compute_squared_curvatures(){
+		this.l_grad_energies = new Array(this.n);
+		this.k_grad_energies = new Array(this.n);
+		for(let i = 0; i < this.n; i++){
+			//Our formula will be reindexed with l_i + l_(i+1)
+			//because of how mesh initialized
+			this.k_grad_energies[i] = 2*this.curvatures[i];
+			this.l_grad_energies[i] = 0;
+		}		
+	}
+
+	compute_constraints(){
 		//Computing constraints
 		//Need to make sure curve is centered at origin and 
 		//first tangent is along x-axis
@@ -382,120 +438,6 @@ class NonisometricCurvatureFlow {
 		}
 	}
 
-	compute_default(){
-
-		this.l_grad_energies = new Array(this.n);
-		this.k_grad_energies = new Array(this.n);
-		for(let i = 0; i < this.n; i++){
-			//Our formula will be reindexed with l_i + l_(i+1)
-			//because of how mesh initialized
-			this.k_grad_energies[i] = 4*this.curvatures[i]/(this.lengths[i]+this.lengths[(i+1)%this.n]);
-			//Formula for edges will contain i-1 and i curvatures
-			let l_grad1 = -2*this.curvatures[(i-1+this.n)%this.n]/((this.lengths[(i-1+this.n)%this.n]+this.lengths[i])**2);
-			let l_grad2 = -2*this.curvatures[i]/((this.lengths[i]+this.lengths[(i+1)%this.n])**2);
-			this.l_grad_energies[i] = l_grad1+l_grad2;
-		}
-		//console.log(JSON.stringify(this.l_grad_energies));
-		//console.log(JSON.stringify(this.k_grad_energies));
-
-		//Computing constraints
-		//Need to make sure curve is centered at origin and 
-		//first tangent is along x-axis
-		//Or compute theta
-		//Also need right orientation(this is determined by mesh input)
-		let zero = new Vector(1,0,0);
-		let first = this.geometry.vector(this.edges[0]);
-		let theta = this.angle(zero,first);
-		let theta_const = theta;
-		let sum = 0;
-		let c1 = [];
-		let c2 = [];
-		let c3 = [];
-		//First length constraints
-		for(let i = 0; i < this.n; i++){
-			let vec = this.geometry.vector(this.edges[i]);
-			c1.push(vec.x);
-		}
-		//First curvature constraints
-		for(let i = 0; i < this.n; i++){
-			//i==0 determined by theta?
-			if(i == 0){
-				c1.push(0);
-			}
-			else{
-				let res = -1.0*Math.sin(theta);
-				res = res*this.lengths[i];
-				c1.push(res);
-				theta = theta + this.curvatures[i];
-			}
-		}
-
-		//Second length constraints
-		theta = theta_const;
-		for(let i = 0; i < this.n; i++){
-			let vec = this.geometry.vector(this.edges[i]);
-			c2.push(vec.y);
-		}
-		//Second curvature constraints
-		for(let i = 0; i < this.n; i++){
-			//i==0 determined by theta?
-			if(i == 0){
-				c2.push(0);
-			}
-			else{
-				let res = Math.cos(theta);
-				res = res*this.lengths[i];
-				c2.push(res);
-				theta = theta + this.curvatures[i];
-			}
-		}
-
-		//Third length constraints
-		for(let i = 0; i < this.n; i++){
-			c3.push(0);
-		}
-		//Third curvature constraints
-		for(let i = 0; i < this.n; i++){
-			c3.push(1);
-		}
-
-		let state = [];
-		for(let i = 0; i < this.n; i++){
-			state.push(this.l_grad_energies[i]);
-		}
-		for(let i = 0; i < this.n; i++){
-			state.push(this.k_grad_energies[i]);
-		}
-
-		//console.log(state);
-
-		//Need to convert these into basis
-		//Gram schmidt!
-		//Passing these arrays by reference will be very inefficient
-		c1 = this.normalize(c1.slice());
-		let c2Onc1 = this.proj(c2.slice(),c1.slice());
-		c2 = this.minus(c2.slice(),c2Onc1.slice());
-		c2 = this.normalize(c2);
-		let c3onc1 = this.proj(c3.slice(),c1.slice());
-		c3 = this.minus(c3.slice(),c3onc1.slice());
-		let c3onc2 = this.proj(c3.slice(),c2.slice());
-		c3 = this.minus(c3.slice(),c3onc2.slice());
-		c3 = this.normalize(c3.slice());
-
-		let proj1 = this.proj(state.slice(),c1);
-		let proj2 = this.proj(state.slice(),c2);
-		let proj3 = this.proj(state.slice(),c3);
-
-		state = this.minus(state.slice(),proj1.slice());
-		state = this.minus(state.slice(),proj2.slice());
-		state = this.minus(state.slice(),proj3.slice());
-
-		for(let i = 0; i < this.n; i++){
-			this.l_grad_energies[i] = state[i];
-			this.k_grad_energies[i] = state[i+this.n];
-		}
-	}
-
 	update(h){
 		//Note: Attains convergence for fixed curvature
 		/*Fucking up somehow because one edge getting too large(seems to be the last one?)
@@ -509,13 +451,14 @@ class NonisometricCurvatureFlow {
 			Constraints do seem to help with breakage*/
 			/*Edge lengths are made large as a result of trying to
 			maximize energy*/
-		h = 0.02;
 		//Computing updates
+		//h=0.002;
 		for(let i = 0; i < this.n; i++){
 			//Recall that we want to go in the opposite direction of 
 			//our gradient
 			//Make sure sign is correct
-			this.lengths[i] = this.lengths[i] - h*this.l_grad_energies[i];
+			//Note: not changing edge lengths should correspond to wilmore flow
+			//this.lengths[i] = this.lengths[i] - h*this.l_grad_energies[i];
 			this.curvatures[i] = this.curvatures[i] - h*this.k_grad_energies[i];
 		}
 	}
@@ -524,8 +467,130 @@ class NonisometricCurvatureFlow {
 		//Minimize distance of new vertex positions from old while
 		//constraint is fixed edge lengths
 		//Maybe assume 0 and n vertices are same in optimization
-		//min(\sum_{ij}((f_j - f_i) - e_ij))^2
+		
+		//Computing tangents
+		/*let init = new Vector(1,0,0);
+		let first = this.geometry.vector(this.edges[0]);
+		first.normalize();
+		let res = init.dot(first);
+		if(res > 1){
+			res = 1;
+		}
+		else if(res < -1){
+			res = -1;
+		}
+		let crv = Math.acos(res);
+		init.x = Math.cos(crv)*1-Math.sin(crv)*0;
+		init.y = Math.sin(crv)*1+Math.cos(crv)*0;
+		if(Math.abs(init.x - first.x) > 10e-3 || Math.abs(init.y - first.y) > 10e-3){
+			crv = -crv;
+			//console.log(targ);
+			//console.log(vec);
+		}
+		crv = 0;
+		this.tangents = [];
+		for(let i = 0; i < this.n; i++){
+			if(i == 0){
+				crv = crv + 0.5*(this.lengths[this.n-1]+this.lengths[i])*this.curvatures[this.n-1];
+			}
+			else{
+				crv = crv + 0.5*(this.lengths[i-1]+this.lengths[i])*this.curvatures[i-1];
+			}
+			let xc = this.lengths[i]*Math.cos(crv);
+			let yc = this.lengths[i]*Math.sin(crv);
+			let vec = new Vector(xc,yc,0);
+			this.tangents.push(vec);
+		}*/
 
+
+		let T = new Triplet(this.n,this.n);
+		for(let i = 0; i < this.n; i++){
+			for(let j = 0; j < this.n; j++){
+				let res = 0;
+				if(i == j){
+					if(i == 0){
+						res = 1/this.lengths[this.n-1] + 1/this.lengths[0];
+					}
+					else{
+						res = 1/this.lengths[i-1] + 1/this.lengths[i];
+					}
+				}
+				/*else{
+					let d = this.dist(i,j);
+					res = -1/d;
+				}*/
+				else if(i+1 == j){
+					res = -1/this.lengths[i];
+				}
+				else if(i == this.n-1 && j == 0){
+					res = -1/this.lengths[i];
+				}
+				else if(i == j+1){
+					res = -1/this.lengths[j];
+				}
+				else if(j == this.n-1 && i == 0){
+					res = -1/this.lengths[j];
+				}
+				//Should I include a case for i == j+1
+				T.addEntry(res,i,j);
+			}
+		}
+		//Running into issues where it says the matrix is not factorized?
+		//Also seems to be some issue where when things cross(when they shouldn't) the next iteration blows up
+		let L = SparseMatrix.fromTriplet(T);
+		let D = L.toDense();
+		for(let i = 0; i < this.n; i++){
+			for(let j = 0; j < this.n; j++){
+				console.log(D.get(i,j));
+			}
+		}
+
+		//console.log(JSON.stringify(this.tangents));
+
+		let bx = DenseMatrix.zeros(this.n,1);
+		for(let i = 0; i < this.n; i++){
+			let res = 0;
+			if(i == 0){
+				res = this.tangents[this.n-1].x/this.lengths[this.n-1] - this.tangents[0].x/this.lengths[0];
+			}
+			else{
+				res = this.tangents[i-1].x/this.lengths[i-1]-this.tangents[i].x/this.lengths[i];
+			}
+			bx.set(res,i,0);
+		}
+
+		let by = DenseMatrix.zeros(this.n,1);
+		for(let i = 0; i < this.n; i++){
+			let res = 0;
+			if(i == 0){
+				res = this.tangents[this.n-1].y/this.lengths[this.n-1] - this.tangents[0].y/this.lengths[0];
+			}
+			else{
+				res = this.tangents[i-1].y/this.lengths[i-1]-this.tangents[i].y/this.lengths[i];
+			}
+			by.set(res,i,0);
+		}
+
+		let lu = L.lu();
+		//Error caused by next line
+		let xs = lu.solveSquare(bx);
+		let ys = lu.solveSquare(by);
+
+		for(let i = 0; i< this.n+1;i++){
+			if(i == this.n){
+				let x = xs.get(0,0);
+				let y = ys.get(0,0);
+				this.geometry.positions[i].x = x;
+				this.geometry.positions[i].y = y;
+			}
+			else{
+				let x = xs.get(i,0);
+				let y = ys.get(i,0);
+				this.geometry.positions[i].x = x;
+				this.geometry.positions[i].y = y;
+			}
+		}
+		//console.log(JSON.stringify(this.geometry.positions));
 	}
 
 	integrate(h){
@@ -535,7 +600,12 @@ class NonisometricCurvatureFlow {
 		
 		this.build_coordinates();
 
-		this.compute_default();
+		this.compute_squared_curvatures();
+
+		let energy = this.compute_energy("squared_curvatures");
+		console.log(energy);
+
+		this.compute_constraints();
 		
 		this.update(h);
 
@@ -543,9 +613,8 @@ class NonisometricCurvatureFlow {
 		//May need to do some normalization
 		this.correct();
 
-		//Then need normalize curve(via least squares), address disc. error
-		//Pick vertex positions and then minimize diff
-		//in edge lengths between actual and result
+		//Center curve around origin
+		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
 
 	}
 }
