@@ -48,10 +48,15 @@ class Solvers {
 			let sys = A.chol();
 			y0 = sys.solvePositiveDefinite(y0);
 			y0.scaleBy(new Complex(1/y0.norm(2),0));
+		
 			let tot = y0.sum();
+			console.log(tot.re,tot.im);
 			tot = tot.overReal(n);
 			let con = ComplexDenseMatrix.constant(tot,n,1);
 			y0.decrementBy(con);
+			console.log(y0.get(0,0).re,y0.get(0,0).im);
+			console.log(y0.get(1,0).re,y0.get(1,0).im);
+			console.log(y0.get(2,0).re,y0.get(2,0).im);
 		}
 		return y0;
 	}
