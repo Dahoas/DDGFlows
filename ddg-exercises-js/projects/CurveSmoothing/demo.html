@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-	<title>Curve Flow via Squared Curvature Energy</title>
+	<title>Curve Flow</title>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 	<link rel="stylesheet" href="../../style/main.css">
@@ -13,7 +13,7 @@
 		<input type="file" id="fileInput" style="visibility:hidden">
 	</div>
 	<div id="info">
-		<h2>Curve Flow via Squared Curvature Energy</h2>
+		<h2>Curve Flow</h2>
 		<div id="meta">Loading...</div>
 	</div>
 	<div id="logo">
@@ -35,9 +35,10 @@
 	<script src="../../core/corner.js"></script>
 	<script src="../../core/mesh.js"></script>
 	<script src="../../core/geometry.js"></script>
-	<script src="../../input/polygon.js"></script>
+	<script src="../../input/Poly3.js"></script>
 	<script src="../../utils/meshio.js"></script>
-	<script src="nonisometric-curvature-flow-demo.js"></script>
+	<script src="nonisometric-curvature-flow-test.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/chai/3.5.0/chai.js"></script>
 	<script>
 		if (!Detector.webgl) Detector.addGetWebGLMessage();
 
@@ -63,6 +64,7 @@
 		let geometry = undefined;
 		let nonIsometricCurvatureFlow = undefined;
 		let h = 0.002;
+		let flow = "wilmore";
 
 		let filename = "small_disk.obj";
 
@@ -80,7 +82,7 @@
 			initCamera();
 			initScene();
 			initLights();
-			initMesh(polygon);
+			initMesh(Poly3);
 			initControls();
 			addEventListeners();
 		}
@@ -98,21 +100,36 @@
 			let gui = new dat.GUI();
 
 			let fields = {
-				
+				"Load Mesh": function() {
+					input.click();
+				},
+				"Export Mesh": function() {
+					exportFile(MeshIO.writeOBJ({
+						"v": positions,
+						"vt": uvs,
+						"vn": normals,
+						"f": indices
+					}));
+				},
 				//Modify
-				
-				"Flow": function() {
-					nonIsometricCurvatureFlow.integrate(h);
+				"Time Step": h,
+				"Type" : flow,
+				"Integrate": function() {
+					nonIsometricCurvatureFlow.integrate(h,flow);
 					updateMesh();
 				},
 				"Show Wireframe": showWireframe
 			};
 
 			let io = gui.addFolder("IO");
+			io.add(fields, "Load Mesh");
+			io.add(fields, "Export Mesh");
 			io.open();
 
-			
-			gui.add(fields, "Flow");
+			//gui.add(fields, "Time Step", 0.00001, 0.1).step(0.00001).onChange(updateTimeStep).listen();
+			gui.add(fields,"Time Step").onChange(updateTimeStep);
+			gui.add(fields,"Type",['wilmore','squared_lengths','squared_curvatures']).onChange(updateFlowType);
+			gui.add(fields, "Integrate");
 			//gui.add(fields, "Show Wireframe").onChange(toggleWireframe).listen();
 		}
 
@@ -170,6 +187,10 @@
 
 		function updateTimeStep(value) {
 			h = value;
+		}
+
+		function updateFlowType(value){
+			flow = value;
 		}
 
 		

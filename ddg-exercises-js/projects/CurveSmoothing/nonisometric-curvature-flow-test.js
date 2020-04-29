@@ -508,7 +508,8 @@ class NonisometricCurvatureFlow {
 
 		this.invariant_check();
 
-		let energy = this.compute_energy("wilmore");
+		let energy = this.compute_energy(type);
+		console.log(type);
 		console.log(energy);
 
 		this.compute(type);
@@ -522,7 +523,7 @@ class NonisometricCurvatureFlow {
 		this.correct();
 
 		//Center curve around origin
-		//normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
+		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
 
 	}
 }

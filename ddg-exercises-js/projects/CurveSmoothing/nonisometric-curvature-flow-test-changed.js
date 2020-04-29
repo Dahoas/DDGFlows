@@ -77,7 +77,7 @@ class NonisometricCurvatureFlow {
 		for(let i = 0; i < this.n; i++){
 			let term = 0;
 			//Maybe should change so that curvature of/at a vertex i is not the ith-1 curvature
-			if(type == "default"){
+			if(type == "wilmore"){
 				term = 2*(this.curvatures[(i-1+this.n)%this.n]**2)*(1/(this.lengths[(i-1+this.n)%this.n]+this.lengths[i]));
 			}
 			else if(type == "squared_lengths"){
@@ -148,8 +148,8 @@ class NonisometricCurvatureFlow {
 			this.curvatures[i] = red;
 		}
 		//console.log(JSON.stringify(this.geometry.positions));
-		//console.log(JSON.stringify(this.lengths));
-		//console.log(JSON.stringify(this.curvatures));
+		console.log(JSON.stringify(this.lengths));
+		console.log(JSON.stringify(this.curvatures));
 	}
 
 	print(i){
@@ -221,11 +221,11 @@ class NonisometricCurvatureFlow {
 	
 
 		//console.log(JSON.stringify(this.geometry.positions));
-		console.log(JSON.stringify(this.lengths));
+		//console.log(JSON.stringify(this.lengths));
 		//console.log(JSON.stringify(this.curvatures));
 	}
 
-	compute_default(){
+	compute_wilmore(){
 
 		this.l_grad_energies = new Array(this.n);
 		this.k_grad_energies = new Array(this.n);
@@ -238,13 +238,13 @@ class NonisometricCurvatureFlow {
 			console.log(this.lengths[i]);
 			console.log(this.lengths[(i+1)%this.n]);
 			*///Formula for edges will contain i-1 and i curvatures
-			let l_grad1 = -2*this.curvatures[(i-1+this.n)%this.n]/((this.lengths[(i-1+this.n)%this.n]+this.lengths[i])**2);
-			let l_grad2 = -2*this.curvatures[i]/((this.lengths[i]+this.lengths[(i+1)%this.n])**2);
+			let l_grad1 = -2*(this.curvatures[(i-1+this.n)%this.n]**2)/((this.lengths[(i-1+this.n)%this.n]+this.lengths[i])**2);
+			let l_grad2 = -2*(this.curvatures[i]**2)/((this.lengths[i]+this.lengths[(i+1)%this.n])**2);
 			this.l_grad_energies[i] = l_grad1+l_grad2;
-			console.log(this.l_grad_energies[i]);
+			//console.log(this.l_grad_energies[i]);
 		}
-		console.log(JSON.stringify(this.l_grad_energies));
-		console.log(JSON.stringify(this.k_grad_energies));	
+		//console.log(JSON.stringify(this.l_grad_energies));
+		//console.log(JSON.stringify(this.k_grad_energies));	
 	}
 
 	compute_squared_lengths(){
@@ -256,8 +256,8 @@ class NonisometricCurvatureFlow {
 			//because of how mesh initialized
 			this.k_grad_energies[i] = 4*this.curvatures[i]/(this.lengths[i]+this.lengths[(i+1)%this.n]);
 			//Formula for edges will contain i-1 and i curvatures
-			let l_grad1 = -2*this.curvatures[(i-1+this.n)%this.n]/((this.lengths[(i-1+this.n)%this.n]+this.lengths[i])**2);
-			let l_grad2 = -2*this.curvatures[i]/((this.lengths[i]+this.lengths[(i+1)%this.n])**2);
+			let l_grad1 = -2*(this.curvatures[(i-1+this.n)%this.n]**2)/((this.lengths[(i-1+this.n)%this.n]+this.lengths[i])**2);
+			let l_grad2 = -2*(this.curvatures[i]**2)/((this.lengths[i]+this.lengths[(i+1)%this.n])**2);
 			//Adding sum of squared lengths
 			let l_grad3 = 2*this.lengths[i];
 			this.l_grad_energies[i] = l_grad1+l_grad2+l_grad3;
@@ -273,6 +273,18 @@ class NonisometricCurvatureFlow {
 			this.k_grad_energies[i] = 2*this.curvatures[i];
 			this.l_grad_energies[i] = 0;
 		}		
+	}
+
+	compute(type){
+		if(type == "wilmore"){
+			this.compute_wilmore();
+		}
+		else if(type == "squared_lengths"){
+			this.compute_squared_lengths();
+		}
+		else if(type == "squared_curvatures"){
+			this.compute_squared_curvatures();
+		}
 	}
 
 	compute_constraints(){
@@ -363,8 +375,10 @@ class NonisometricCurvatureFlow {
 			this.l_grad_energies[i] = state[i];
 			this.k_grad_energies[i] = state[i+this.n];
 		}
-		console.log(this.l_grad_energies);
-		console.log(this.k_grad_energies);
+		//console.log(this.l_grad_energies);
+		//console.log(this.k_grad_energies);
+		//console.log(JSON.stringify(this.l_grad_energies));
+		//console.log(JSON.stringify(this.k_grad_energies));	
 	}
 
 	update(h){
@@ -381,7 +395,7 @@ class NonisometricCurvatureFlow {
 			/*Edge lengths are made large as a result of trying to
 			maximize energy*/
 		//Computing updates
-		h=0.02;
+		//h=0.02;
 		for(let i = 0; i < this.n; i++){
 			//Recall that we want to go in the opposite direction of 
 			//our gradient
@@ -472,17 +486,32 @@ class NonisometricCurvatureFlow {
 		//console.log(JSON.stringify(this.geometry.positions));
 	}
 
-	integrate(h){
-		//Why on earth is console.log nonlinear
+	invariant_check(){
+		let total_curv = 0;
+		for(let i = 0; i < this.n; i++){
+			total_curv = total_curv+this.curvatures[i];
+		}
+		//Only considering 2pi curvature curves
+		if(Math.abs(Math.abs(total_curv)-(2*Math.PI)) > 10e-2){
+			console.log(Math.abs(Math.abs(total_curv)-(2*Math.PI)));
+			chai.assert.fail("Curvature not 2 pi");
+		}
 
-		//Reconstruct and build_coords do not work correctly
+		for(let i = 0; i < this.n; i++){
+			chai.assert(this.lengths[i] >= 0);
+		}
+	}
+
+	integrate(h,type){
 		
 		this.build_coordinates();
 
-		let energy = this.compute_energy("squared_lengths");
+		this.invariant_check();
+
+		let energy = this.compute_energy("wilmore");
 		console.log(energy);
 
-		this.compute_squared_lengths();
+		this.compute(type);
 
 		this.compute_constraints();
 		
@@ -493,7 +522,7 @@ class NonisometricCurvatureFlow {
 		this.correct();
 
 		//Center curve around origin
-		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
+		//normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
 
 	}
 }

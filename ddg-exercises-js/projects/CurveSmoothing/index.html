@@ -35,9 +35,10 @@
 	<script src="../../core/corner.js"></script>
 	<script src="../../core/mesh.js"></script>
 	<script src="../../core/geometry.js"></script>
-	<script src="../../input/polygon.js"></script>
+	<script src="../../input/Poly3.js"></script>
 	<script src="../../utils/meshio.js"></script>
 	<script src="nonisometric-curvature-flow-test.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/chai/3.5.0/chai.js"></script>
 	<script>
 		if (!Detector.webgl) Detector.addGetWebGLMessage();
 
@@ -63,6 +64,7 @@
 		let geometry = undefined;
 		let nonIsometricCurvatureFlow = undefined;
 		let h = 0.002;
+		let flow = "wilmore";
 
 		let filename = "small_disk.obj";
 
@@ -80,7 +82,7 @@
 			initCamera();
 			initScene();
 			initLights();
-			initMesh(polygon);
+			initMesh(Poly3);
 			initControls();
 			addEventListeners();
 		}
@@ -111,8 +113,9 @@
 				},
 				//Modify
 				"Time Step": h,
+				"Type" : flow,
 				"Integrate": function() {
-					nonIsometricCurvatureFlow.integrate(h);
+					nonIsometricCurvatureFlow.integrate(h,flow);
 					updateMesh();
 				},
 				"Show Wireframe": showWireframe
@@ -123,7 +126,9 @@
 			io.add(fields, "Export Mesh");
 			io.open();
 
-			gui.add(fields, "Time Step", 0.001, 0.1).step(0.001).onChange(updateTimeStep).listen();
+			//gui.add(fields, "Time Step", 0.00001, 0.1).step(0.00001).onChange(updateTimeStep).listen();
+			gui.add(fields,"Time Step").onChange(updateTimeStep);
+			gui.add(fields,"Type").onChange(updateFlowType);
 			gui.add(fields, "Integrate");
 			//gui.add(fields, "Show Wireframe").onChange(toggleWireframe).listen();
 		}
@@ -182,6 +187,10 @@
 
 		function updateTimeStep(value) {
 			h = value;
+		}
+
+		function updateFlowType(value){
+			flow = value;
 		}
 
 		
