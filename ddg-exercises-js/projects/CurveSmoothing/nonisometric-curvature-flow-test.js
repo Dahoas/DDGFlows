@@ -149,8 +149,8 @@ class NonisometricCurvatureFlow {
 			this.curvatures[i] = red;
 		}
 		//console.log(JSON.stringify(this.geometry.positions));
-		console.log(JSON.stringify(this.lengths));
-		console.log(JSON.stringify(this.curvatures));
+		//console.log(JSON.stringify(this.lengths));
+		//console.log(JSON.stringify(this.curvatures));
 	}
 
 	print(i){
@@ -519,10 +519,19 @@ class NonisometricCurvatureFlow {
 		for(let i =0; i< this.n; i++){
 			edge_length_sum = edge_length_sum + this.lengths[i];
 		}
+		let mean = edge_length_sum/this.n;
+
+		let variance = 0;
+		for(let i =0;i < this.n;i++){
+			variance = variance + (this.lengths[i]-mean)**2;
+		}
+		variance = variance/(this.n-1);
 
 		console.log(type);
 		console.log(energy);
 		console.log(edge_length_sum);
+		console.log(mean);
+		console.log(variance);
 		console.log(this.step_count);
 	}
 

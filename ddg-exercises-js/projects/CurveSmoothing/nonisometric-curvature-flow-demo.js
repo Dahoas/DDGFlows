@@ -10,6 +10,7 @@ class NonisometricCurvatureFlow {
 		//console.log(JSON.stringify(this.geometry.positions));
 		//Subtract 1 to eliminate imaginary last edge
 		this.n = geometry.mesh.vertices.length-1;
+		this.step_count = 0;
 	}
 
 	//Postitive Curvature is counterclockwise rotation
@@ -148,8 +149,8 @@ class NonisometricCurvatureFlow {
 			this.curvatures[i] = red;
 		}
 		//console.log(JSON.stringify(this.geometry.positions));
-		console.log(JSON.stringify(this.lengths));
-		console.log(JSON.stringify(this.curvatures));
+		//console.log(JSON.stringify(this.lengths));
+		//console.log(JSON.stringify(this.curvatures));
 	}
 
 	print(i){
@@ -381,7 +382,7 @@ class NonisometricCurvatureFlow {
 		//console.log(JSON.stringify(this.k_grad_energies));	
 	}
 
-	update(h){
+	update(h,g){
 		//Note: Attains convergence for fixed curvature
 		/*Fucking up somehow because one edge getting too large(seems to be the last one?)
 			Perhaps I have implemented constraints correctly: Last edge is not fixed length so
@@ -401,8 +402,16 @@ class NonisometricCurvatureFlow {
 			//our gradient
 			//Make sure sign is correct
 			//Note: not changing edge lengths should correspond to wilmore flow
-			this.lengths[i] = this.lengths[i] - h**2*this.l_grad_energies[i];
+			this.lengths[i] = this.lengths[i] - h*g*this.l_grad_energies[i];
 			this.curvatures[i] = this.curvatures[i] - h*this.k_grad_energies[i];
+			/*if(i == this.n-1){
+				console.log(this.curvatures[i]);
+				console.log(this.k_grad_energies[i]);
+			}
+			else if(i == 0){
+				console.log(this.curvatures[i]);
+				console.log(this.k_grad_energies[i]);
+			}*/
 		}
 	}
 
@@ -502,21 +511,50 @@ class NonisometricCurvatureFlow {
 		}
 	}
 
-	integrate(h,type){
+	measure(type){
+		let energy = this.compute_energy(type);
+		
+
+		let edge_length_sum = 0;
+		for(let i =0; i< this.n; i++){
+			edge_length_sum = edge_length_sum + this.lengths[i];
+		}
+		let mean = edge_length_sum/this.n;
+
+		let variance = 0;
+		for(let i =0;i < this.n;i++){
+			variance = variance + (this.lengths[i]-mean)**2;
+		}
+		variance = variance/(this.n-1);
+
+		console.log(type);
+		console.log(energy);
+		console.log(edge_length_sum);
+		console.log(mean);
+		console.log(variance);
+		console.log(this.step_count);
+	}
+
+	integrate(h,g,type){
+
+		//Decide on Metrics:
+		//Speed of convergence
+		//Step size taken
+		//Stability(dependent on step size)
+		//edge length change
+		//Aesthetic
 		
 		this.build_coordinates();
 
 		this.invariant_check();
 
-		let energy = this.compute_energy(type);
-		console.log(type);
-		console.log(energy);
+		this.measure(type);
 
 		this.compute(type);
 
 		this.compute_constraints();
 		
-		this.update(h);
+		this.update(h,g);
 
 		this.reconstruct();
 		//May need to do some normalization
@@ -524,6 +562,8 @@ class NonisometricCurvatureFlow {
 
 		//Center curve around origin
 		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
+
+		this.step_count = this.step_count +1;
 
 	}
 }
