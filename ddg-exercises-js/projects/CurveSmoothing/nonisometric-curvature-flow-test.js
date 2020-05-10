@@ -214,6 +214,10 @@ class NonisometricCurvatureFlow {
 				vec.y = Math.sin(crv);
 				vec.scaleBy(this.lengths[i]);
 				this.tangents.push(vec);
+
+				this.geometry.positions[i+1].x = this.geometry.positions[i].x + vec.x;
+				this.geometry.positions[i+1].y = this.geometry.positions[i].y + vec.y;
+				this.geometry.positions[i+1].z = 0;
 		
 			}
 			//this.print(this.vert_ordering[i+1]);
@@ -527,11 +531,41 @@ class NonisometricCurvatureFlow {
 		}
 		variance = variance/(this.n-1);
 
+		let irregular_edges = [];
+		for(let i = 0; i < this.n; i++){
+			let temp = [];
+			if(Math.abs(this.lengths[i] - mean) >= Math.sqrt(variance)*3){
+				temp.push(i);
+				temp.push(this.lengths[i]);
+				temp.push(this.l_grad_energies[i]);
+				irregular_edges.push(temp);
+			}
+		}
+
+		let irregular_curvatures = [];
+		for(let i = 0; i < this.n; i++){
+			let temp = [];
+			if(Math.abs(this.curvatures[i]) >= Math.PI/8){
+				temp.push(i);
+				temp.push(this.curvatures[i]);
+				temp.push(this.k_grad_energies[i]);
+			}
+		}
+
 		console.log(type);
+		console.log("Energy");
 		console.log(energy);
+		console.log("Length Sum");
 		console.log(edge_length_sum);
+		console.log("Edge Mean");
 		console.log(mean);
+		console.log("Edge Variance");
 		console.log(variance);
+		console.log("Irregular Edges");
+		console.log(JSON.stringify(irregular_edges));
+		console.log("Irregular Curvatures");
+		console.log(JSON.stringify(irregular_curvatures));
+		console.log("Steps");
 		console.log(this.step_count);
 	}
 
@@ -548,17 +582,17 @@ class NonisometricCurvatureFlow {
 
 		this.invariant_check();
 
-		this.measure(type);
-
 		this.compute(type);
 
 		this.compute_constraints();
+
+		this.measure(type);
 		
 		this.update(h,g);
 
 		this.reconstruct();
 		//May need to do some normalization
-		this.correct();
+		//this.correct();
 
 		//Center curve around origin
 		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
