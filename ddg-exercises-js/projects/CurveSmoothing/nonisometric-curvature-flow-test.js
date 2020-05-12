@@ -11,6 +11,8 @@ class NonisometricCurvatureFlow {
 		//Subtract 1 to eliminate imaginary last edge
 		this.n = geometry.mesh.vertices.length-1;
 		this.step_count = 0;
+		console.log("Size");
+		console.log(this.n);
 	}
 
 	//Postitive Curvature is counterclockwise rotation
@@ -98,6 +100,12 @@ class NonisometricCurvatureFlow {
 		this.edges = new Array(this.n);
 		this.curvatures = new Array(this.n);
 		this.lengths = new Array(this.n);
+
+		//Check to make sure not on degenerate halfedge(only there for graphical reasons)
+		if(this.geometry.length(bound.edge) == 0){
+			bound = bound.twin;
+			bound = bound.next;
+		}
 	
 
 		for(let i = 0; i < this.n; i++){
@@ -189,6 +197,8 @@ class NonisometricCurvatureFlow {
 		}
 
 		this.tangents = [];
+		//crv = this.curvatures[this.n-1]/2;
+		//Im not convinced reconstruction is exactly right
 		for(let i = 0; i < this.n; i++){
 		
 			if(i == 0){
@@ -197,6 +207,17 @@ class NonisometricCurvatureFlow {
 				vec.x = Math.cos(crv);
 				vec.y = Math.sin(crv);
 				vec.scaleBy(this.lengths[i]);
+
+				//New
+				let turn = this.curvatures[this.n-1];
+				let dir = this.geometry.vector(this.edges[this.n-1]);
+				dir.normalize();
+				vec.x = Math.cos(turn)*dir.x - Math.sin(turn)*dir.y;
+				vec.y = Math.sin(turn)*dir.x + Math.cos(turn)*dir.y;
+				vec.scaleBy(this.lengths[i]);
+				this.edges[i] = vec;
+
+	
 				this.tangents.push(vec);
 
 				this.geometry.positions[i+1].x = this.geometry.positions[i].x + vec.x;
@@ -205,7 +226,6 @@ class NonisometricCurvatureFlow {
 			}
 			//Last curvature only arises because of closure condition
 			else{
-
 				let crvi = this.curvatures[i-1];
 				crv = (crvi + crv);
 			
@@ -213,6 +233,14 @@ class NonisometricCurvatureFlow {
 				vec.x = Math.cos(crv);
 				vec.y = Math.sin(crv);
 				vec.scaleBy(this.lengths[i]);
+
+				//New
+				vec.x = Math.cos(crvi)*this.edges[i-1].x - Math.sin(crvi)*this.edges[i-1].y;
+				vec.y = Math.sin(crvi)*this.edges[i-1].x + Math.cos(crvi)*this.edges[i-1].y;
+				vec.normalize();
+				vec.scaleBy(this.lengths[i]);
+				this.edges[i] = vec;
+
 				this.tangents.push(vec);
 
 				this.geometry.positions[i+1].x = this.geometry.positions[i].x + vec.x;
@@ -222,7 +250,6 @@ class NonisometricCurvatureFlow {
 			}
 			//this.print(this.vert_ordering[i+1]);
 		}
-
 	
 
 		//console.log(JSON.stringify(this.geometry.positions));
@@ -298,6 +325,7 @@ class NonisometricCurvatureFlow {
 		let first = this.geometry.vector(this.edges[0]);
 		let theta = this.angle(zero,first);
 		let theta_const = theta;
+		//???Really shouldn't be using edges(unmutated by gradient)
 		let sum = 0;
 		let c1 = [];
 		let c2 = [];
@@ -372,9 +400,17 @@ class NonisometricCurvatureFlow {
 		let proj2 = this.proj(state.slice(),c2);
 		let proj3 = this.proj(state.slice(),c3);
 
+		//console.log(JSON.stringify(proj1));
+		//console.log(JSON.stringify(proj2));
+		//console.log(JSON.stringify(proj3));
+
+		//console.log(JSON.stringify(state));
+
 		state = this.minus(state.slice(),proj1.slice());
 		state = this.minus(state.slice(),proj2.slice());
 		state = this.minus(state.slice(),proj3.slice());
+
+		//console.log(JSON.stringify(state));
 
 		for(let i = 0; i < this.n; i++){
 			this.l_grad_energies[i] = state[i];
@@ -406,8 +442,11 @@ class NonisometricCurvatureFlow {
 			//our gradient
 			//Make sure sign is correct
 			//Note: not changing edge lengths should correspond to wilmore flow
+
 			this.lengths[i] = this.lengths[i] - h*g*this.l_grad_energies[i];
 			this.curvatures[i] = this.curvatures[i] - h*this.k_grad_energies[i];
+			
+
 			/*if(i == this.n-1){
 				console.log(this.curvatures[i]);
 				console.log(this.k_grad_energies[i]);
@@ -520,16 +559,22 @@ class NonisometricCurvatureFlow {
 		
 
 		let edge_length_sum = 0;
+		let curvature_sum = 0;
 		for(let i =0; i< this.n; i++){
+			curvature_sum = curvature_sum + this.curvatures[i];
 			edge_length_sum = edge_length_sum + this.lengths[i];
 		}
 		let mean = edge_length_sum/this.n;
+		let mean_curv = curvature_sum/this.n;
 
 		let variance = 0;
+		let curv_var = 0;
 		for(let i =0;i < this.n;i++){
 			variance = variance + (this.lengths[i]-mean)**2;
+			curv_var = curv_var + (this.curvatures[i]-mean_curv)**2;
 		}
 		variance = variance/(this.n-1);
+		curv_var = curv_var/(this.n-1);
 
 		let irregular_edges = [];
 		for(let i = 0; i < this.n; i++){
@@ -545,10 +590,11 @@ class NonisometricCurvatureFlow {
 		let irregular_curvatures = [];
 		for(let i = 0; i < this.n; i++){
 			let temp = [];
-			if(Math.abs(this.curvatures[i]) >= Math.PI/8){
+			if(Math.abs(this.curvatures[i] - mean_curv) >= Math.sqrt(curv_var)*3){
 				temp.push(i);
 				temp.push(this.curvatures[i]);
 				temp.push(this.k_grad_energies[i]);
+				irregular_curvatures.push(temp);
 			}
 		}
 
@@ -592,7 +638,7 @@ class NonisometricCurvatureFlow {
 
 		this.reconstruct();
 		//May need to do some normalization
-		//this.correct();
+		this.correct();
 
 		//Center curve around origin
 		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
@@ -600,4 +646,16 @@ class NonisometricCurvatureFlow {
 		this.step_count = this.step_count +1;
 
 	}
+
+	run(h,g,type){
+		this.build_coordinates();
+		this.energy = this.compute_energy(type);
+		let energy = this.energy;
+		do{
+			this.energy = energy;
+			this.integrate(h,g,type);
+			energy = this.compute_energy(type);
+		}while(energy <= this.energy && (this.energy-energy) > 10e-2);
+	}
+
 }
