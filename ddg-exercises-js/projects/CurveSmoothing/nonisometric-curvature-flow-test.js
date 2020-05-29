@@ -177,24 +177,31 @@ class NonisometricCurvatureFlow {
 		this.geometry.positions[0].z = this.geometry.positions[0].z;
 		//this.print(0);
 		//Compute initial curvature
-		let init = new Vector(1,0,0);
-		let first = this.geometry.vector(this.edges[0]);
-		first.normalize();
-		let res = init.dot(first);
-		if(res > 1){
-			res = 1;
-		}
-		else if(res < -1){
-			res = -1;
-		}
-		let crv = Math.acos(res);
-		init.x = Math.cos(crv)*1-Math.sin(crv)*0;
-		init.y = Math.sin(crv)*1+Math.cos(crv)*0;
-		if(Math.abs(init.x - first.x) > 10e-3 || Math.abs(init.y - first.y) > 10e-3){
-			crv = -crv;
-			//console.log(targ);
-			//console.log(vec);
-		}
+		//New
+		//We assume theta0 is 0
+		/*let crv = 0;
+		for(let i = 0; i < this.n; i++){
+			//First tangent should go out of 0
+			//Last tangent should go into 0
+			let crvi;
+			let l1,l2;
+			if(i == 0){
+				crvi = this.curvatures[this.n-1];
+				l1 = this.lengths[this.n-1];
+				l2 = this.lengths[0];
+			}
+			else{
+				crvi = this.curvatures[i-1];
+				l1 = this.lengths[i-1];
+				l2 = this.lengths[i];
+			}
+			crvi = (1/2)*crvi;
+			crv = crv+crvi;
+			let vec = new Vector(0,0,0);
+			vec.x = Math.cos(crv)*this.lengths[i];
+			vec.y = Math.sin(crv)*this.lengths[i];
+			this.tangents.push(vec);
+		}*/
 
 		this.tangents = [];
 		//crv = this.curvatures[this.n-1]/2;
@@ -204,8 +211,8 @@ class NonisometricCurvatureFlow {
 			if(i == 0){
 				//Don't include next curvature
 				let vec = new Vector(0,0,0);
-				vec.x = Math.cos(crv);
-				vec.y = Math.sin(crv);
+				//vec.x = Math.cos(crv);
+				//vec.y = Math.sin(crv);
 				vec.scaleBy(this.lengths[i]);
 
 				//New
@@ -227,13 +234,9 @@ class NonisometricCurvatureFlow {
 			//Last curvature only arises because of closure condition
 			else{
 				let crvi = this.curvatures[i-1];
-				crv = (crvi + crv);
+				//crv = (crvi + crv);
 			
 				let vec = new Vector(0,0,0);
-				vec.x = Math.cos(crv);
-				vec.y = Math.sin(crv);
-				vec.scaleBy(this.lengths[i]);
-
 				//New
 				vec.x = Math.cos(crvi)*this.edges[i-1].x - Math.sin(crvi)*this.edges[i-1].y;
 				vec.y = Math.sin(crvi)*this.edges[i-1].x + Math.cos(crvi)*this.edges[i-1].y;
@@ -656,6 +659,19 @@ class NonisometricCurvatureFlow {
 			this.integrate(h,g,type);
 			energy = this.compute_energy(type);
 		}while(energy <= this.energy && (this.energy-energy) > 10e-2);
+	}
+
+	run25(h,g,type){
+		let cnt = 0;
+		this.build_coordinates();
+		this.energy = this.compute_energy(type);
+		let energy = this.energy;
+		do{
+			this.energy = energy;
+			this.integrate(h,g,type);
+			energy = this.compute_energy(type);
+			cnt++;
+		}while(cnt < 25);
 	}
 
 }

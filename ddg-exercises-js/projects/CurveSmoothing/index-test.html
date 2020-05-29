@@ -124,6 +124,10 @@
 					nonIsometricCurvatureFlow.run(h,g,flow);
 					updateMesh();
 				},
+				"Run 25": function() {
+					nonIsometricCurvatureFlow.run25(h,g,flow);
+					updateMesh();
+				},
 				"Show Wireframe": showWireframe
 			};
 
@@ -138,6 +142,7 @@
 			gui.add(fields,"Type",['wilmore','squared_lengths','squared_curvatures']).onChange(updateFlowType);
 			gui.add(fields, "Integrate");
 			gui.add(fields,"Run");
+			gui.add(fields,"Run 25");
 			//gui.add(fields, "Show Wireframe").onChange(toggleWireframe).listen();
 		}
 
