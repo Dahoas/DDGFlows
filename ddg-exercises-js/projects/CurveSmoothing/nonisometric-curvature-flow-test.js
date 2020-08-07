@@ -606,10 +606,10 @@ class NonisometricCurvatureFlow {
 		console.log(energy);
 		console.log("Length Sum");
 		console.log(edge_length_sum);
-		console.log("Edge Mean");
-		console.log(mean);
-		console.log("Edge Variance");
-		console.log(variance);
+		//console.log("Edge Mean");
+		//console.log(mean);
+		//console.log("Edge Variance");
+		//console.log(variance);
 		console.log("Irregular Edges");
 		console.log(JSON.stringify(irregular_edges));
 		console.log("Irregular Curvatures");
@@ -635,7 +635,7 @@ class NonisometricCurvatureFlow {
 
 		this.compute_constraints();
 
-		this.measure(type);
+		//this.measure(type);
 		
 		this.update(h,g);
 
@@ -646,7 +646,7 @@ class NonisometricCurvatureFlow {
 		//Center curve around origin
 		normalize(this.geometry.positions,this.geometry.mesh.vertices,false);
 
-		this.step_count = this.step_count +1;
+		this.step_count = this.step_count + 1;
 
 	}
 
