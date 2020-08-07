@@ -115,80 +115,6 @@ class NonisometricCurvatureFlow {
 		return energy;
 	}
 
-	build_coordinates(){
-
-		let bound = this.geometry.mesh.vertices[0].halfedge;
-		this.edges = new Array(this.n);
-		this.curvatures = new Array(this.n);
-		this.lengths = new Array(this.n);
-
-		//Check to make sure not on degenerate halfedge(only there for graphical reasons)
-		if(this.geometry.length(bound.edge) == 0){
-			bound = bound.twin;
-			bound = bound.next;
-		}
-	
-
-		for(let i = 0; i < this.n; i++){
-			//Iterate around boundary
-			//First bound is halfedge coming out of first vertex
-			this.edges[i] = bound;
-			//Length is length of halfedge extending from
-			//vertex i
-			this.lengths[i] = this.geometry.length(bound.edge);
-			bound = bound.next;
-		}
-
-		for(let i = 0;i<this.n;i++){
-		
-			let vec1 = this.geometry.vector(this.edges[i]);
-			let vec2 = undefined;
-			if(i == this.n-1){
-				vec2 = this.geometry.vector(this.edges[i].next.next);
-			}
-			else{
-				vec2 = this.geometry.vector(this.edges[i].next);
-			}
-			let dot =  vec1.dot(vec2);
-			let res = dot/(vec1.norm()*vec2.norm());
-			//Temp fix?
-			if(res > 1){
-				res = 1;
-			}
-			else if(res < -1){
-				res = -1;
-			}
-			let red = Math.acos(res);
-		
-			let vec = new Vector(vec1.x,vec1.y,0);
-			vec.normalize();
-			let targ = new Vector(vec2.x,vec2.y,0);
-			targ.normalize();
-			let tempx = vec.x;
-			let tempy = vec.y;
-			//Switching rotation direction fixes parity flipping
-			vec.x = Math.cos(red)*tempx - Math.sin(red)*tempy;
-			vec.y = Math.sin(red)*tempx + Math.cos(red)*tempy;
-			//Floating point issues...
-			if(Math.abs(targ.x - vec.x) > 10e-3 || Math.abs(targ.y - vec.y) > 10e-3){
-				red = -red;
-				//console.log(targ);
-				//console.log(vec);
-			}
-			this.curvatures[i] = red;
-		}
-
-		this.old_lengths = this.lengths.slice(0);
-		this.old_curvatures = this.curvatures.slice(0);
-	}
-
-	print(i){
-		let x = this.geometry.positions[i].x;
-		let y = this.geometry.positions[i].y;
-		let z = this.geometry.positions[i].z;
-		console.log("Set vertex " + i + " at " + x + " " + y + " " + z);
-	}
-
 	compute_wilmore(){
 
 		this.l_grad_energies = new Array(this.n);
@@ -244,6 +170,74 @@ class NonisometricCurvatureFlow {
 		}
 	}
 
+	build_coordinates(){
+
+		let bound = this.geometry.mesh.vertices[0].halfedge;
+		this.edges = new Array(this.n);
+		this.curvatures = new Array(this.n);
+		this.lengths = new Array(this.n);
+
+		//Check to make sure not on degenerate halfedge(only there for graphical reasons)
+		if(this.geometry.length(bound.edge) == 0){
+			bound = bound.twin;
+			bound = bound.next;
+		}
+	
+
+		for(let i = 0; i < this.n; i++){
+			//Iterate around boundary
+			//First bound is halfedge coming out of first vertex
+			this.edges[i] = bound;
+			//Length is length of halfedge extending from
+			//vertex i
+			this.lengths[i] = this.geometry.length(bound.edge);
+			bound = bound.next;
+		}
+
+		for(let i = 0;i<this.n;i++){
+		
+			let vec1 = this.geometry.vector(this.edges[i]);
+			let vec2 = undefined;
+			if(i == this.n-1){
+				vec2 = this.geometry.vector(this.edges[0]);
+			}
+			else{
+				vec2 = this.geometry.vector(this.edges[i+1]);
+			}
+			let dot =  vec1.dot(vec2);
+			let res = dot/(vec1.norm()*vec2.norm());
+			//Temp fix?
+			if(res > 1){
+				res = 1;
+			}
+			else if(res < -1){
+				res = -1;
+			}
+			let red = Math.acos(res);
+		
+			//Checking sign of curvature, why do I have to do this?
+			let vec = new Vector(vec1.x,vec1.y,0);
+			vec.normalize();
+			let targ = new Vector(vec2.x,vec2.y,0);
+			targ.normalize();
+			let tempx = vec.x;
+			let tempy = vec.y;
+			//Switching rotation direction fixes parity flipping
+			vec.x = Math.cos(red)*tempx - Math.sin(red)*tempy;
+			vec.y = Math.sin(red)*tempx + Math.cos(red)*tempy;
+			//Floating point issues...
+			if(Math.abs(targ.x - vec.x) > 10e-3 || Math.abs(targ.y - vec.y) > 10e-3){
+				red = -red;
+				//console.log(targ);
+				//console.log(vec);
+			}
+			this.curvatures[i] = red;
+		}
+
+		this.old_lengths = this.lengths.slice(0);
+		this.old_curvatures = this.curvatures.slice(0);
+	}
+
 	compute_constraints(){
 
 		let zero = new Vector(1,0,0);
@@ -255,45 +249,52 @@ class NonisometricCurvatureFlow {
 		let c1 = [];
 		let c2 = [];
 		let c3 = [];
+
+		//Letting last curvature control first edge
+		theta = this.curvatures[this.n-1];
+
+		//Constraints don't seem to care about last curvature; maybe last curvature should control first component of sum
+		//Computing cumulative angles: kth angle determines kth tangent
+		let angles = [];
+		angles.push(theta);
+		for(let k = 1; k < this.n; k++){
+			angles.push(angles[k-1]+this.curvatures[k-1]);
+		}
+
 		//First length constraints
 		for(let i = 0; i < this.n; i++){
 			let vec = this.geometry.vector(this.edges[i]);
 			c1.push(vec.x);
 		}
-		//First curvature constraints
-		for(let i = 0; i < this.n; i++){
-			//i==0 determined by theta?
-			if(i == 0){
-				c1.push(0);
-			}
-			else{
-				let res = -1.0*Math.sin(theta);
-				res = res*this.lengths[i];
-				c1.push(res);
-				theta = theta + this.curvatures[i];
-			}
+		//First componenent curvature constraints
+		sum =0;
+		let c1tmp = [];
+		//Last curvature(does not determine constraints?)
+		c1tmp.unshift(0);
+		for(let k = this.n-1; k >= 1; k--){
+			//k is kth curvature
+			sum = sum-this.lengths[k]*Math.sin(angles[k]);
+			c1tmp.unshift(sum);
 		}
+		c1 = c1.concat(c1tmp);
 
 		//Second length constraints
-		theta = theta_const;
 		for(let i = 0; i < this.n; i++){
 			let vec = this.geometry.vector(this.edges[i]);
 			c2.push(vec.y);
 		}
 		//Second curvature constraints
-		for(let i = 0; i < this.n; i++){
-			//i==0 determined by theta?
-			if(i == 0){
-				c2.push(0);
-			}
-			else{
-				let res = Math.cos(theta);
-				res = res*this.lengths[i];
-				c2.push(res);
-				theta = theta + this.curvatures[i];
-			}
+		sum =0;
+		let c2tmp = [];
+		//Last curvature(does not determine constraints?)
+		c2tmp.unshift(0);
+		for(let k = this.n-1; k >= 1; k--){
+			//k is kth curvature
+			sum = sum+this.lengths[k]*Math.cos(angles[k]);
+			c2tmp.unshift(sum);
 		}
-
+		c2 = c2.concat(c2tmp);
+		
 		//Third length constraints
 		for(let i = 0; i < this.n; i++){
 			c3.push(0);
@@ -302,6 +303,7 @@ class NonisometricCurvatureFlow {
 		for(let i = 0; i < this.n; i++){
 			c3.push(1);
 		}
+		
 
 		let state = [];
 		for(let i = 0; i < this.n; i++){
@@ -383,8 +385,6 @@ class NonisometricCurvatureFlow {
 				//Not building on self
 				//To build on self use tangents
 				let vec = this.rotate(this.tangents[i-1],crvi);
-
-			
 				/*let vec = new Vector(0,0,0);
 				//New
 				vec.x = Math.cos(crvi)*this.edges[i-1].x - Math.sin(crvi)*this.edges[i-1].y;
@@ -396,6 +396,8 @@ class NonisometricCurvatureFlow {
 		
 			}
 			//this.print(this.vert_ordering[i+1]);
+			this.geometry.positions[i+1].x = this.geometry.positions[i].x+this.tangents[i].x;
+			this.geometry.positions[i+1].y = this.geometry.positions[i].y+this.tangents[i].y;
 		}
 	}
 
